@@ -14,6 +14,7 @@
 // bracketed by m5_reset_stats()/m5_dump_stats() when built with -DUSE_M5OPS).
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -76,6 +77,8 @@ struct Totals
 	uint64_t checksum = 0;           // folds in every returned path so runs can be compared bit-for-bit
 	// replay only: comparison with what the real run got back for the same call
 	uint64_t compared = 0, status_mismatch = 0, size_mismatch = 0, path_mismatch = 0;
+	uint64_t found_calls = 0, notfound_calls = 0, exp_diff_found = 0, exp_diff_notfound = 0;
+	double max_exp_dev = 0;  // largest |replay - recorded| / recorded expansions over all calls
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -257,6 +260,14 @@ int main(int argc, char** argv)
 			auto res = e.findSuboptimalPath(*prepared[c].top, init_ct[tc.agent], prepared[c].paths,
 			                                tc.agent, tc.lowerbound, tc.w);
 			t.recorded_expanded += tc.expanded;
+			{
+				bool found = !res.first.empty();
+				(found ? t.found_calls : t.notfound_calls)++;
+				if (e.num_expanded != tc.expanded)
+					(found ? t.exp_diff_found : t.exp_diff_notfound)++;
+				double dev = std::fabs((double)e.num_expanded - (double)tc.expanded) / std::max(1.0, (double)tc.expanded);
+				if (dev > t.max_exp_dev) t.max_exp_dev = dev;
+			}
 			if (tc.has_result)
 			{
 				uint64_t cs = 0;
@@ -342,6 +353,10 @@ int main(int argc, char** argv)
 		printf(" | vs real run over %llu calls: found/not-found differs %llu, path length differs %llu, path differs %llu",
 		       (unsigned long long)tot.compared, (unsigned long long)tot.status_mismatch,
 		       (unsigned long long)tot.size_mismatch, (unsigned long long)tot.path_mismatch);
+	if (!args.trace.empty() && tot.compared > 0)
+		printf(" | per-call expansions: not-found calls %llu (differ %llu), found calls %llu (differ %llu), max deviation %.2f%%",
+		       (unsigned long long)tot.notfound_calls, (unsigned long long)tot.exp_diff_notfound,
+		       (unsigned long long)tot.found_calls, (unsigned long long)tot.exp_diff_found, 100.0 * tot.max_exp_dev);
 	printf("\n");
 	return 0;
 }
