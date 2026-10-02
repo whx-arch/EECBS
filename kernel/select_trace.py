@@ -14,6 +14,13 @@ Modes
   OUT_TRACE --window-start S --window-len L [--warm W]
                                      one file: L consecutive calls from call S, preceded by the
                                      W calls just before S as warm-up
+  --chunks PREFIX [--n-chunks N] [--warm W]
+                                     full coverage: split ALL calls into N contiguous chunks, one file each
+                                     (PREFIX<k>.trace + PREFIX.manifest with scale 1), so run_gem5.py --prefix
+                                     PREFIX / strata_perf.py can run them in parallel and simply add the results.
+                                     Each chunk is preceded by W warm-up calls (the W calls just before it; for
+                                     chunk 0 the W calls just after it). Only a little state is lost at the
+                                     chunk boundaries. Use it as the reference the samples are validated against.
 Both single-file modes keep the original call order, so the interleaving of small and large
 calls (cache / predictor carry-over) is preserved; the first W calls of the file are warm-up
 (--warmup W), the rest are measured (--iters <calls - W>).
@@ -117,6 +124,28 @@ def stratify(header, calls, bounds, per, warm, prefix):
     print("manifest: %s.manifest" % prefix)
 
 
+def chunk_files(header, calls, prefix, n_chunks, warm):
+    n = len(calls)
+    bounds = [round(i * n / n_chunks) for i in range(n_chunks + 1)]
+    lines = ["# stratum lo hi population pop_expanded warm_calls roi_calls roi_expanded scale"]
+    for k in range(n_chunks):
+        lo, hi = bounds[k], bounds[k + 1]
+        roi = calls[lo:hi]
+        wcalls = calls[lo - warm:lo] if lo - warm >= 0 else calls[hi:hi + warm]
+        roi_exp = sum(c[0] for c in roi)
+        fname = "%s%d.trace" % (prefix, k)
+        with open(fname, "w") as f:
+            f.write(header)
+            for _, _, text in wcalls + roi:
+                f.write(text)
+        lines.append("%d %d %d %d %d %d %d %d 1.0000" % (k, lo, hi, len(roi), roi_exp, len(wcalls), len(roi), roi_exp))
+        print("chunk %2d: calls %4d..%4d (%d measured, %d expansions) + %d warm-up -> %s"
+              % (k, lo, hi - 1, len(roi), roi_exp, len(wcalls), fname))
+    with open(prefix + ".manifest", "w") as f:
+        f.write("\n".join(lines) + "\n")
+    print("manifest: %s.manifest (all %d calls covered, scale 1)" % (prefix, n))
+
+
 def single_file(header, calls, a):
     n = len(calls)
     total = sum(c[0] for c in calls)
@@ -158,6 +187,8 @@ def main():
     ap.add_argument("--bounds", default="1000,5000,20000", help="comma-separated stratum boundaries (expanded nodes)")
     ap.add_argument("--per", type=int, default=6, help="measured calls per stratum")
     ap.add_argument("--warm", type=int, default=2, help="warm-up calls (per stratum, or at the start of the file)")
+    ap.add_argument("--chunks", metavar="PREFIX", help="split all calls into contiguous chunks (full coverage)")
+    ap.add_argument("--n-chunks", type=int, default=16)
     ap.add_argument("--every", type=int, default=0, help="single file: keep every K-th call in original order")
     ap.add_argument("--offset", type=int, default=0, help="with --every: index of the first kept call")
     ap.add_argument("--by-size", action="store_true", help="with --every: pick every K-th call in size order")
@@ -174,8 +205,11 @@ def main():
     if a.stratify:
         stratify(header, calls, [int(x) for x in a.bounds.split(",")], a.per, a.warm, a.stratify)
         return
+    if a.chunks:
+        chunk_files(header, calls, a.chunks, a.n_chunks, a.warm)
+        return
     if not a.out_trace:
-        raise SystemExit("OUT_TRACE (or --stratify PREFIX) required unless --stats-only")
+        raise SystemExit("OUT_TRACE (or --stratify PREFIX / --chunks PREFIX) required unless --stats-only")
     if a.every > 0 or a.window_start >= 0:
         single_file(header, calls, a)
         return
