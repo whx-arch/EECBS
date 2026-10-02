@@ -9,14 +9,16 @@ whole solver.
 1. **Build a tracing eecbs** in a separate build dir. `-DKERNEL_TRACE` enables a hook in
    `ECBS::findPathForSingleAgent`; the normal build does not contain it, so existing
    baselines are unaffected.
+   Run from the repo root and use `-S/-B`: `cmake ..` silently reconfigures the root instead
+   if it holds an old in-source `CMakeCache.txt`.
    ```bash
-   mkdir -p build-trace && cd build-trace
-   cmake -DCMAKE_CXX_FLAGS=-DKERNEL_TRACE .. && make -j8
+   cmake -S . -B build-trace -DCMAKE_CXX_FLAGS=-DKERNEL_TRACE
+   cmake --build build-trace -j8
    ```
 2. **Record** one full run (same arguments as the baseline). Nothing is written unless
    `EECBS_TRACE_FILE` is set.
    ```bash
-   EECBS_TRACE_FILE=/tmp/m2_full.trace ./eecbs -m maze-32-32-2.map -a maze-32-32-2-random-1.scen \
+   EECBS_TRACE_FILE=/tmp/m2_full.trace ./build-trace/eecbs -m maze-32-32-2.map -a maze-32-32-2-random-1.scen \
        -k 70 -t 60 --suboptimality=1.18
    ```
 3. **Look at the distribution, then pick the heavy calls.**
