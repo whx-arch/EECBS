@@ -74,6 +74,8 @@ struct Totals
 	uint64_t calls = 0, expanded = 0, generated = 0, path_len = 0, empty = 0;
 	uint64_t recorded_expanded = 0;  // replay only: expansions the real run spent on the same calls
 	uint64_t checksum = 0;           // folds in every returned path so runs can be compared bit-for-bit
+	// replay only: comparison with what the real run got back for the same call
+	uint64_t compared = 0, status_mismatch = 0, size_mismatch = 0, path_mismatch = 0;
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -86,6 +88,9 @@ struct TraceCall
 	uint64_t expanded = 0, generated = 0;
 	vector<list<Constraint>> nodes;  // constraint list of each HL node, deepest first
 	vector<Path> paths;              // every agent's path (empty = none / the replanned agent itself)
+	bool has_result = false;         // trace v1 files written before RESULT existed do not have it
+	size_t result_size = 0;          // path the real run got back (0 = no path)
+	uint64_t result_checksum = 0;
 };
 
 static void bad_trace(const char* what)
@@ -142,6 +147,12 @@ static vector<TraceCall> loadTrace(const string& fname, int& num_agents)
 				in >> c.paths[i][j].location;
 		}
 		in >> tok;
+		if (tok == "RESULT")
+		{
+			in >> c.result_size >> c.result_checksum;
+			c.has_result = true;
+			in >> tok;
+		}
 		if (tok != "END" || !in) bad_trace("expected END");
 		calls.push_back(std::move(c));
 	}
@@ -246,6 +257,16 @@ int main(int argc, char** argv)
 			auto res = e.findSuboptimalPath(*prepared[c].top, init_ct[tc.agent], prepared[c].paths,
 			                                tc.agent, tc.lowerbound, tc.w);
 			t.recorded_expanded += tc.expanded;
+			if (tc.has_result)
+			{
+				uint64_t cs = 0;
+				for (auto& p : res.first)
+					cs = cs * 1000003u + (uint64_t)p.location + 1;
+				t.compared++;
+				if ((res.first.empty()) != (tc.result_size == 0)) t.status_mismatch++;  // found vs not found
+				if (res.first.size() != tc.result_size) t.size_mismatch++;
+				if (res.first.size() != tc.result_size || cs != tc.result_checksum) t.path_mismatch++;
+			}
 			account(t, e, res);
 		};
 		fprintf(stderr, "setup done: replaying %zu recorded calls, %d agents, %dx%d map\n", trace.size(), K,
@@ -317,6 +338,10 @@ int main(int argc, char** argv)
 	if (!args.trace.empty())
 		printf(" recorded_expanded=%llu replay/recorded=%.3f", (unsigned long long)tot.recorded_expanded,
 		       tot.recorded_expanded ? (double)tot.expanded / (double)tot.recorded_expanded : 0.0);
+	if (!args.trace.empty() && tot.compared > 0)
+		printf(" | vs real run over %llu calls: found/not-found differs %llu, path length differs %llu, path differs %llu",
+		       (unsigned long long)tot.compared, (unsigned long long)tot.status_mismatch,
+		       (unsigned long long)tot.size_mismatch, (unsigned long long)tot.path_mismatch);
 	printf("\n");
 	return 0;
 }

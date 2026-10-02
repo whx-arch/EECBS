@@ -342,7 +342,7 @@ bool ECBS::generateChild(ECBSNode*  node, ECBSNode* parent)
 // kernel/lowlevel_kernel can replay the exact inputs. Nothing happens if the variable is unset.
 #include <cstdlib>
 static void traceLowLevelCall(const HLNode& node, const vector<Path*>& paths, int ag, int lowerbound, double w,
-                              const Instance& instance, uint64_t expanded, uint64_t generated)
+                              const Instance& instance, uint64_t expanded, uint64_t generated, const Path& result)
 {
 	static std::ofstream out;
 	static bool opened = false, enabled = false;
@@ -390,6 +390,11 @@ static void traceLowLevelCall(const HLNode& node, const vector<Path*>& paths, in
 			out << " " << e.location;
 		out << "\n";
 	}
+	// the path the real run got back (size 0 = no path); lets the replay check that it finds the same thing
+	uint64_t checksum = 0;
+	for (const auto& e : result)
+		checksum = checksum * 1000003u + (uint64_t)e.location + 1;
+	out << "RESULT " << result.size() << " " << checksum << "\n";
 	out << "END\n";
 }
 #endif
@@ -400,7 +405,7 @@ bool ECBS::findPathForSingleAgent(ECBSNode*  node, int ag)
 	auto new_path = search_engines[ag]->findSuboptimalPath(*node, initial_constraints[ag], paths, ag, min_f_vals[ag], suboptimality);
 #ifdef KERNEL_TRACE
 	traceLowLevelCall(*node, paths, ag, min_f_vals[ag], suboptimality, search_engines[ag]->instance,
-	                  search_engines[ag]->num_expanded, search_engines[ag]->num_generated);
+	                  search_engines[ag]->num_expanded, search_engines[ag]->num_generated, new_path.first);
 #endif
 	num_LL_expanded += search_engines[ag]->num_expanded;
 	num_LL_generated += search_engines[ag]->num_generated;
