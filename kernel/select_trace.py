@@ -6,6 +6,14 @@ Modes
   OUT_TRACE [--top N] [--min-expanded X]   keep the heaviest calls (a single trace file)
   --stratify PREFIX --bounds B1,B2,.. [--per N] [--warm W]
                                      stratified sample, one trace file per stratum
+  OUT_TRACE --every K [--offset O] [--warm W]
+                                     one file: every K-th call in the original order
+  OUT_TRACE --window-start S --window-len L [--warm W]
+                                     one file: L consecutive calls from call S, preceded by the
+                                     W calls just before S as warm-up
+Both single-file modes keep the original call order, so the interleaving of small and large
+calls (cache / predictor carry-over) is preserved; the first W calls of the file are warm-up
+(--warmup W), the rest are measured (--iters <calls - W>).
 
 Stratified sampling (for gem5, where the full trace is far too long):
   * calls are split into strata by expanded-node count: [0,B1), [B1,B2), ..., [Bk,inf)
@@ -106,6 +114,32 @@ def stratify(header, calls, bounds, per, warm, prefix):
     print("manifest: %s.manifest" % prefix)
 
 
+def single_file(header, calls, a):
+    n = len(calls)
+    total = sum(c[0] for c in calls)
+    if a.every > 0:
+        sample = calls[a.offset::a.every]
+        warm, roi = sample[:a.warm], sample[a.warm:]
+        what = "every %d-th call from index %d" % (a.every, a.offset)
+    else:
+        lo = a.window_start
+        if lo - a.warm < 0 or lo + a.window_len > n:
+            raise SystemExit("window [%d-%d warm-up, %d+%d) does not fit in %d calls" % (lo, a.warm, lo, a.window_len, n))
+        warm, roi = calls[lo - a.warm:lo], calls[lo:lo + a.window_len]
+        what = "calls %d..%d (+%d warm-up calls before)" % (lo, lo + a.window_len - 1, a.warm)
+    with open(a.out_trace, "w") as f:
+        f.write(header)
+        for _, _, text in warm + roi:
+            f.write(text)
+    roi_exp = sum(c[0] for c in roi)
+    heavy = sum(1 for c in roi if c[0] >= 20000)
+    print("%s: %d warm-up + %d measured calls (%d with >= 20000 expansions), %d measured expansions "
+          "(%.1f%% of the run; expansion scale x%.1f)"
+          % (what, len(warm), len(roi), heavy, roi_exp, 100.0 * roi_exp / total, total / roi_exp))
+    print("replay with: --warmup %d --iters %d" % (len(warm), len(roi)))
+    print("wrote %s" % a.out_trace)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("full_trace")
@@ -116,7 +150,11 @@ def main():
     ap.add_argument("--stratify", metavar="PREFIX", help="write PREFIX<k>.trace per stratum + PREFIX.manifest")
     ap.add_argument("--bounds", default="1000,5000,20000", help="comma-separated stratum boundaries (expanded nodes)")
     ap.add_argument("--per", type=int, default=6, help="measured calls per stratum")
-    ap.add_argument("--warm", type=int, default=2, help="warm-up calls per stratum")
+    ap.add_argument("--warm", type=int, default=2, help="warm-up calls (per stratum, or at the start of the file)")
+    ap.add_argument("--every", type=int, default=0, help="single file: keep every K-th call in original order")
+    ap.add_argument("--offset", type=int, default=0, help="with --every: index of the first kept call")
+    ap.add_argument("--window-start", type=int, default=-1, help="single file: first measured call of a window")
+    ap.add_argument("--window-len", type=int, default=0, help="with --window-start: number of measured calls")
     a = ap.parse_args()
 
     header, calls = read_calls(a.full_trace)
@@ -130,6 +168,9 @@ def main():
         return
     if not a.out_trace:
         raise SystemExit("OUT_TRACE (or --stratify PREFIX) required unless --stats-only")
+    if a.every > 0 or a.window_start >= 0:
+        single_file(header, calls, a)
+        return
 
     chosen = [c for c in calls if c[0] >= a.min_expanded]
     if a.top > 0:
