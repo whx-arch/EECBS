@@ -264,8 +264,7 @@ int main(int argc, char** argv)
 			                                tc.agent, tc.lowerbound, tc.w);
 			t.recorded_expanded += tc.expanded;
 			if (per_call && &t == &tot)
-				fprintf(per_call, "%zu %d %llu %llu
-", c, res.first.empty() ? 0 : 1,
+				fprintf(per_call, "%zu %d %llu %llu\n", c, res.first.empty() ? 0 : 1,
 				        (unsigned long long)tc.expanded, (unsigned long long)e.num_expanded);
 			{
 				bool found = !res.first.empty();
