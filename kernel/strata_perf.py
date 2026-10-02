@@ -81,9 +81,14 @@ def main():
         if line.startswith("#") or not line.strip():
             continue
         f = line.split()
-        strata.append(dict(s=int(f[0]), pop=int(f[3]), warm=int(f[5]), roi=int(f[6]), scale=float(f[8])))
+        strata.append(dict(s=int(f[0]), pop=int(f[3]), warm=int(f[5]), roi=int(f[6]), scale=float(f[8]),
+                           # ratio estimator: scale by expanded nodes instead of call counts, which cancels
+                           # the error from sampled calls being bigger/smaller than the stratum average
+                           xscale=float(f[4]) / float(f[7])))
 
     est = {k: 0.0 for k in KEYS}
+    est_x = {k: 0.0 for k in KEYS}
+    stratum_cycles = []
     for st in strata:
         trace = "%s%d.trace" % (args.prefix, st["s"])
         d = delta(args, trace, st["warm"], st["roi"])
@@ -91,15 +96,23 @@ def main():
               % (st["s"], st["roi"], st["scale"], d["instructions"], d["cycles"], derived(d)))
         for k in KEYS:
             est[k] += st["scale"] * d[k]
+            est_x[k] += st["xscale"] * d[k]
+        stratum_cycles.append(st["xscale"] * d["cycles"])
 
     ncalls = sum(st["pop"] for st in strata)
     full = delta(args, args.full_trace, 0, ncalls)
     print()
-    print("%-14s %14s %14s %8s" % ("metric", "stratified est", "full replay", "error"))
+    print("%-14s %14s %8s %14s %8s %14s" % ("metric", "count-scaled", "error", "expansion-scaled", "error", "full replay"))
     for k in KEYS:
-        print("%-14s %14.4g %14.4g %+7.1f%%" % (k, est[k], full[k], 100.0 * (est[k] - full[k]) / full[k]))
-    print("stratified est: " + derived(est))
-    print("full replay   : " + derived(full))
+        print("%-14s %14.4g %+7.1f%% %14.4g %+7.1f%% %14.4g"
+              % (k, est[k], 100.0 * (est[k] - full[k]) / full[k], est_x[k],
+                 100.0 * (est_x[k] - full[k]) / full[k], full[k]))
+    print("count-scaled    : " + derived(est))
+    print("expansion-scaled: " + derived(est_x))
+    print("full replay     : " + derived(full))
+    tot = sum(stratum_cycles)
+    print("cycle share per stratum (expansion-scaled): " +
+          ", ".join("s%d %.1f%%" % (st["s"], 100.0 * c / tot) for st, c in zip(strata, stratum_cycles)))
 
 
 if __name__ == "__main__":
