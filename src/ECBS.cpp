@@ -336,10 +336,72 @@ bool ECBS::generateChild(ECBSNode*  node, ECBSNode* parent)
 }
 
 
+#ifdef KERNEL_TRACE
+// Only compiled with -DKERNEL_TRACE (see kernel/README.md); the default build never contains this.
+// Appends one record per low-level call to the file named by $EECBS_TRACE_FILE so that
+// kernel/lowlevel_kernel can replay the exact inputs. Nothing happens if the variable is unset.
+#include <cstdlib>
+static void traceLowLevelCall(const HLNode& node, const vector<Path*>& paths, int ag, int lowerbound, double w,
+                              const Instance& instance, uint64_t expanded, uint64_t generated)
+{
+	static std::ofstream out;
+	static bool opened = false, enabled = false;
+	static long call_id = 0;
+	if (!opened)
+	{
+		opened = true;
+		const char* fname = getenv("EECBS_TRACE_FILE");
+		if (fname != nullptr)
+		{
+			out.open(fname);
+			enabled = out.good();
+			if (enabled)
+				out << "TRACE v1\nINSTANCE " << paths.size() << " " << instance.num_of_rows << " "
+				    << instance.num_of_cols << "\n";
+		}
+	}
+	if (!enabled)
+		return;
+	out << "CALL " << call_id++ << " " << ag << " " << lowerbound << " " << std::setprecision(17) << w << " "
+	    << expanded << " " << generated << "\n";
+	// constraint lists of the HL node chain, deepest node first (the order insert2CT walks them)
+	int num_nodes = 0;
+	for (const HLNode* curr = &node; curr->parent != nullptr; curr = curr->parent)
+		num_nodes++;
+	out << "NODES " << num_nodes << "\n";
+	for (const HLNode* curr = &node; curr->parent != nullptr; curr = curr->parent)
+	{
+		out << "N " << curr->constraints.size();
+		for (const auto& c : curr->constraints)
+			out << " " << get<0>(c) << " " << get<1>(c) << " " << get<2>(c) << " " << get<3>(c) << " " << (int)get<4>(c);
+		out << "\n";
+	}
+	// all other agents' current paths (the conflict-avoidance table); the agent's own path is not used
+	out << "PATHS\n";
+	for (size_t i = 0; i < paths.size(); i++)
+	{
+		if ((int)i == ag || paths[i] == nullptr)
+		{
+			out << "0\n";
+			continue;
+		}
+		out << paths[i]->size();
+		for (const auto& e : *paths[i])
+			out << " " << e.location;
+		out << "\n";
+	}
+	out << "END\n";
+}
+#endif
+
 bool ECBS::findPathForSingleAgent(ECBSNode*  node, int ag)
 {
 	clock_t t = clock();
 	auto new_path = search_engines[ag]->findSuboptimalPath(*node, initial_constraints[ag], paths, ag, min_f_vals[ag], suboptimality);
+#ifdef KERNEL_TRACE
+	traceLowLevelCall(*node, paths, ag, min_f_vals[ag], suboptimality, search_engines[ag]->instance,
+	                  search_engines[ag]->num_expanded, search_engines[ag]->num_generated);
+#endif
 	num_LL_expanded += search_engines[ag]->num_expanded;
 	num_LL_generated += search_engines[ag]->num_generated;
 	runtime_build_CT += search_engines[ag]->runtime_build_CT;
