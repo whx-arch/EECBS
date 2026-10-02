@@ -50,6 +50,23 @@ def main():
     print("calls=%d total_expanded=%d mean=%.0f  p50=%d p90=%d p99=%d max=%d"
           % (n, sum(exps), sum(exps) / n, q(0.5), q(0.9), q(0.99), exps[-1]))
     if a.stats_only:
+        total = sum(exps)
+        desc = sorted(exps, reverse=True)
+        for frac in (0.01, 0.05, 0.10, 0.25, 0.50):
+            k = max(1, int(round(frac * n)))
+            print("heaviest %3.0f%% of calls (%4d calls) hold %5.1f%% of all expansions"
+                  % (frac * 100, k, 100.0 * sum(desc[:k]) / total))
+        for target in (0.5, 0.8, 0.9):
+            acc = 0
+            for i, e in enumerate(desc, 1):
+                acc += e
+                if acc >= target * total:
+                    print("%d heaviest calls already hold %.0f%% of all expansions" % (i, 100 * target))
+                    break
+        for thr in (10000, 30000, 60000):
+            big = [e for e in exps if e >= thr]
+            print("calls with >= %5d expansions: %4d (%.1f%% of expansions)"
+                  % (thr, len(big), 100.0 * sum(big) / total))
         return
     if not a.out_trace:
         raise SystemExit("OUT_TRACE required unless --stats-only")
