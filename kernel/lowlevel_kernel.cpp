@@ -29,7 +29,7 @@
 
 struct Args
 {
-	string map, scen, trace;
+	string map, scen, trace, per_call;
 	int agents = 50;
 	int iters = 200;
 	int warmup = 0;
@@ -42,7 +42,7 @@ struct Args
 static void usage(const char* prog)
 {
 	fprintf(stderr,
-	        "usage: %s --map F --scen F [--trace F] [--agents K] [--iters N] [--warmup N]\n"
+	        "usage: %s --map F --scen F [--trace F] [--per-call F] [--agents K] [--iters N] [--warmup N]\n"
 	        "          [--constraints C] [--block-len B] [--w W] [--seed S]\n", prog);
 	exit(1);
 }
@@ -57,6 +57,7 @@ static Args parse(int argc, char** argv)
 		if (is("--map")) a.map = argv[++i];
 		else if (is("--scen")) a.scen = argv[++i];
 		else if (is("--trace")) a.trace = argv[++i];
+		else if (is("--per-call")) a.per_call = argv[++i];
 		else if (is("--agents")) a.agents = atoi(argv[++i]);
 		else if (is("--iters")) a.iters = atoi(argv[++i]);
 		else if (is("--warmup")) a.warmup = atoi(argv[++i]);
@@ -208,6 +209,8 @@ int main(int argc, char** argv)
 
 	Totals tot;
 	std::function<void(int, Totals&)> replan;
+	FILE* per_call = nullptr;  // replay: one line per measured call (index found recorded_expanded replay_expanded)
+	if (!args.per_call.empty()) per_call = fopen(args.per_call.c_str(), "w");
 
 	// bookkeeping shared by both modes
 	auto account = [](Totals& t, const SpaceTimeAStar& e, const pair<Path, int>& res)
@@ -260,6 +263,10 @@ int main(int argc, char** argv)
 			auto res = e.findSuboptimalPath(*prepared[c].top, init_ct[tc.agent], prepared[c].paths,
 			                                tc.agent, tc.lowerbound, tc.w);
 			t.recorded_expanded += tc.expanded;
+			if (per_call && &t == &tot)
+				fprintf(per_call, "%zu %d %llu %llu
+", c, res.first.empty() ? 0 : 1,
+				        (unsigned long long)tc.expanded, (unsigned long long)e.num_expanded);
 			{
 				bool found = !res.first.empty();
 				(found ? t.found_calls : t.notfound_calls)++;
@@ -342,6 +349,7 @@ int main(int argc, char** argv)
 	m5_dump_stats(0, 0);
 #endif
 
+	if (per_call) fclose(per_call);
 	double secs = std::chrono::duration<double>(t1 - t0).count();
 	printf("calls=%llu expanded=%llu generated=%llu path_len_sum=%llu empty=%llu checksum=%llu wall=%.3fs",
 	       (unsigned long long)tot.calls, (unsigned long long)tot.expanded, (unsigned long long)tot.generated,
