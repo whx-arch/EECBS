@@ -84,7 +84,19 @@ def summarize(vals):
     return out
 
 
-def expected_line_ok(stdout_path, roi_exp):
+def native_expanded(native_bin, a, st):
+    """Expanded nodes of the same stratum replayed natively with the same arguments (default seed).
+    gem5 must reproduce this exactly: same binary logic, same libc rand() stream."""
+    if not native_bin or not os.path.exists(native_bin):
+        return None
+    cmd = [native_bin, "--map", a.map, "--scen", a.scen, "--trace", "%s%d.trace" % (a.prefix, st["s"]),
+           "--warmup", str(st["warm"]), "--iters", str(st["roi"])]
+    p = subprocess.run(cmd, capture_output=True, text=True)
+    m = re.search(r"calls=\d+ expanded=(\d+)", p.stdout)
+    return int(m.group(1)) if m else None
+
+
+def expected_line_ok(stdout_path, native_exp, manifest_exp):
     try:
         text = open(stdout_path, errors="replace").read()
     except OSError:
@@ -93,7 +105,11 @@ def expected_line_ok(stdout_path, roi_exp):
     if not m:
         return False, "kernel did not print its result line"
     got = int(m.group(1))
-    return got == roi_exp, "kernel reported expanded=%d, manifest expects %d" % (got, roi_exp)
+    if native_exp is not None:
+        return got == native_exp, "gem5 kernel reported expanded=%d, native replay of the same stratum reports %d" % (got, native_exp)
+    # no native binary: the manifest holds the REAL run's counts, which differ slightly for calls that
+    # found a path (tie-breaking randomness), so only a loose check is possible
+    return abs(got - manifest_exp) <= 0.1 * manifest_exp,         "kernel reported expanded=%d, manifest (real run) has %d (loose 10%% check, no --native-bin)" % (got, manifest_exp)
 
 
 def main():
@@ -107,6 +123,8 @@ def main():
     ap.add_argument("--scen", default="maze-32-32-2-random-1.scen")
     ap.add_argument("--setup-insts", type=int, default=18500000,
                     help="instructions to fast-forward (just below the kernel's setup length)")
+    ap.add_argument("--native-bin", default="kernel/build/lowlevel_kernel",
+                    help="native (non-gem5) kernel used to compute the expected expanded count of each stratum")
     ap.add_argument("--gem5-args", default="--cpu-type=DerivO3CPU --caches --l2cache")
     ap.add_argument("--strata", default="", help="comma-separated stratum ids (default: all)")
     ap.add_argument("--no-run", action="store_true", help="do not launch gem5, only parse existing outputs")
@@ -146,7 +164,7 @@ def main():
             continue
         vals = first_block(stats)
         summ = summarize(vals)
-        ok, msg = expected_line_ok(os.path.join(outdir, "stdout.txt"), st["roi_exp"])
+        ok, msg = expected_line_ok(os.path.join(outdir, "stdout.txt"), native_expanded(a.native_bin, a, st), st["roi_exp"])
         if ok is not True:
             problems.append("stratum %d: %s" % (st["s"], msg))
         if summ["insts"] <= 0 or summ["cycles"] <= 0:

@@ -6,8 +6,11 @@ Modes
   OUT_TRACE [--top N] [--min-expanded X]   keep the heaviest calls (a single trace file)
   --stratify PREFIX --bounds B1,B2,.. [--per N] [--warm W]
                                      stratified sample, one trace file per stratum
-  OUT_TRACE --every K [--offset O] [--warm W]
-                                     one file: every K-th call in the original order
+  OUT_TRACE --every K [--offset O] [--by-size] [--warm W]
+                                     one file: every K-th call; with --by-size the calls are first sorted
+                                     by size so the sample's size mix matches the whole run (no luck in how
+                                     many heavy calls get picked); the picked calls are then put back in
+                                     their original order
   OUT_TRACE --window-start S --window-len L [--warm W]
                                      one file: L consecutive calls from call S, preceded by the
                                      W calls just before S as warm-up
@@ -118,9 +121,13 @@ def single_file(header, calls, a):
     n = len(calls)
     total = sum(c[0] for c in calls)
     if a.every > 0:
-        sample = calls[a.offset::a.every]
+        if a.by_size:
+            order = sorted(range(n), key=lambda i: (calls[i][0], i))
+            sample = [calls[i] for i in sorted(order[a.offset::a.every])]
+        else:
+            sample = calls[a.offset::a.every]
         warm, roi = sample[:a.warm], sample[a.warm:]
-        what = "every %d-th call from index %d" % (a.every, a.offset)
+        what = "every %d-th call%s from index %d" % (a.every, " in size order" if a.by_size else "", a.offset)
     else:
         lo = a.window_start
         if lo - a.warm < 0 or lo + a.window_len > n:
@@ -153,6 +160,7 @@ def main():
     ap.add_argument("--warm", type=int, default=2, help="warm-up calls (per stratum, or at the start of the file)")
     ap.add_argument("--every", type=int, default=0, help="single file: keep every K-th call in original order")
     ap.add_argument("--offset", type=int, default=0, help="with --every: index of the first kept call")
+    ap.add_argument("--by-size", action="store_true", help="with --every: pick every K-th call in size order")
     ap.add_argument("--window-start", type=int, default=-1, help="single file: first measured call of a window")
     ap.add_argument("--window-len", type=int, default=0, help="with --window-start: number of measured calls")
     a = ap.parse_args()
