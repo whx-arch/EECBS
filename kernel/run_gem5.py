@@ -166,9 +166,15 @@ def main():
     ap.add_argument("--native-bin", default="kernel/build/lowlevel_kernel",
                     help="native (non-gem5) kernel used to compute the expected expanded count of each stratum")
     ap.add_argument("--gem5-args", default="--cpu-type=DerivO3CPU --caches --l2cache")
+    ap.add_argument("--cond-bp", default=None,
+                    help="conditional branch predictor type (e.g. LocalBP, TournamentBP, TAGE); "
+                         "appended as --cond-bp-type to gem5-args (requires patched gem5, see patch_gem5_cond_bp.py)")
     ap.add_argument("--strata", default="", help="comma-separated stratum ids (default: all)")
     ap.add_argument("--no-run", action="store_true", help="do not launch gem5, only parse existing outputs")
     a = ap.parse_args()
+
+    if a.cond_bp:
+        a.gem5_args += " --cond-bp-type=" + a.cond_bp
 
     if a.single:
         strata = [single_stratum(a.single, a.warm, a.total_exp)]
