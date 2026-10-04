@@ -132,7 +132,6 @@ def patch_bp_application(path, dry_run):
 
         cond_block = [
             "%sif getattr(%s, 'cond_bp_type', None):" % (indent, var),
-            "%simport m5.objects" % body_indent,
             "%s_cbp = getattr(m5.objects, %s.cond_bp_type, None)" % (body_indent, var),
             "%sif _cbp is None:" % body_indent,
             '%s    fatal("Unknown --cond-bp-type: %%s" %% %s.cond_bp_type)' % (body_indent, var),
