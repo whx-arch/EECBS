@@ -212,7 +212,7 @@ def main():
                 continue
             path = os.path.join(root, f)
             try:
-                text = open(path).read(8192)
+                text = open(path).read()
             except Exception:
                 continue
             if "indirect_bp_type" in text and "indirectBranchPred" in text:
