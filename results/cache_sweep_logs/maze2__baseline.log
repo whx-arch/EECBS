@@ -1,0 +1,12 @@
+single: fast-forward 157300739 instructions
+launching single: runs/cache_sweep/maze2/baseline/single
+single finished (exit 0)
+
+single: 1.38e+09 instr, 1.34e+09 cycles, CPI 0.974, cond-branch miss 2.49%, MPKI 5.52
+
+whole-run estimate (expansion-scaled): 1.379e+09 instr, 1.344e+09 cycles, CPI 0.974
+  cond-branch miss 2.49%, MPKI 5.52
+  icache miss rate 0.47%, 0.74 misses per 1000 instr
+  dcache miss rate 7.20%, 27.56 misses per 1000 instr
+  l2 miss rate 17.08%, 3.05 misses per 1000 instr
+  cycle share per stratum: single 100.0%
