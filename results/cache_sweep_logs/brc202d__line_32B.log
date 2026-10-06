@@ -1,0 +1,12 @@
+single: fast-forward 2994445050 instructions
+launching single: runs/cache_sweep/brc202d/line_32B/single
+single finished (exit 1)
+
+Traceback (most recent call last):
+  File "/home/viplab/EECBS Workload/EECBS/kernel/run_gem5.py", line 258, in <module>
+    main()
+    ~~~~^^
+  File "/home/viplab/EECBS Workload/EECBS/kernel/run_gem5.py", line 233, in main
+    line = "%s: %.3g instr, %.3g cycles, CPI %.3f" % (st["name"], s["insts"], s["cycles"], s["cycles"] / s["insts"])
+                                                                                           ~~~~~~~~~~~~^~~~~~~~~~~~
+ZeroDivisionError: division by zero
