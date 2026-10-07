@@ -1,0 +1,30 @@
+warn: The se.py script is deprecated. It will be removed in future releases of  gem5.
+warn: Base 10 memory/cache size 1MB will be cast to base 2 size 1MiB.
+warn: Base 10 memory/cache size 1MB will be cast to base 2 size 1MiB.
+Global frequency set at 1000000000000 ticks per second
+src/mem/dram_interface.cc:690: warn: DRAM device capacity (8192 Mbytes) does not match the address range assigned (512 Mbytes)
+src/base/statistics.hh:279: warn: One of the stats is a legacy stat. Legacy stat is a stat that does not belong to any statistics::Group. Legacy stat is deprecated.
+src/base/stats/storage.hh:278: warn: Bucket size (4) does not divide range [1:32] into equal-sized buckets. Rounding up.
+src/base/stats/storage.hh:278: warn: Bucket size (4) does not divide range [1:8] into equal-sized buckets. Rounding up.
+src/base/remote_gdb.cc:418: warn: Sockets disabled, not accepting gdb connections
+gem5 Simulator System.  https://www.gem5.org
+gem5 is copyrighted software; use the --copyright option for details.
+
+gem5 version 25.1.0.1
+gem5 compiled Sep 24 2026 21:25:59
+gem5 started Oct  6 2026 20:23:40
+gem5 executing on viplab-gem5, pid 381911
+command line: /home/viplab/gem5/build/X86/gem5.opt --outdir=runs/cache_sweep/maze2/l2_1MB/single /home/viplab/gem5/configs/deprecated/example/se.py --cmd=kernel/build-gem5/lowlevel_kernel '--options=--map maze-32-32-2.map --scen maze-32-32-2-random-1.scen --trace kernel/traces/bs32_o7.trace --warmup 2 --iters 53' --cpu-type=DerivO3CPU --caches --l2cache --l2_size=1MB --fast-forward=142163236
+
+info: Standard input is not a terminal, disabling listeners.
+Switch at instruction count:142163236
+src/sim/syscall_emul.cc:86: warn: ignoring syscall set_robust_list(...)
+src/sim/syscall_emul.cc:86: warn: ignoring syscall rseq(...)
+src/sim/mem_state.cc:443: info: Increasing stack size by one page.
+src/sim/syscall_emul.cc:86: warn: ignoring syscall mprotect(...)
+src/sim/mem_state.cc:443: info: Increasing stack size by one page.
+src/sim/power_state.cc:105: warn: PowerState: Already in the requested power state, request ignored
+Switched CPUS @ tick 162165495000
+switching cpus
+**** REAL SIMULATION ****
+setup done: replaying 55 recorded calls, selected 0, 70 agents, 32x32 map
