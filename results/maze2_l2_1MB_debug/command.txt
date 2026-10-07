@@ -1,0 +1,1 @@
+/home/viplab/gem5/build/X86/gem5.opt --outdir=runs/cache_sweep/maze2/l2_1MB/single /home/viplab/gem5/configs/deprecated/example/se.py --cmd=kernel/build-gem5/lowlevel_kernel '--options=--map maze-32-32-2.map --scen maze-32-32-2-random-1.scen --trace kernel/traces/bs32_o7.trace --warmup 2 --iters 53' --cpu-type=DerivO3CPU --caches --l2cache --l2_size=1MB --fast-forward=142163236
