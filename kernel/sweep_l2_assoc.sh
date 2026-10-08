@@ -1,18 +1,14 @@
 #!/usr/bin/env bash
-# Prefetcher sweep for gem5 kernel experiments.
-# Validates §5.2 hypothesis: pointer-chasing (maze2) vs sequential (brc202d)
-# respond differently to hardware prefetching.
-#
-# Run from the repo root:  bash kernel/sweep_prefetcher.sh
+# L2 associativity sweep: distinguish capacity misses from conflict misses.
+# Run from the repo root:  bash kernel/sweep_l2_assoc.sh
 set -euo pipefail
 
 MAX_JOBS=4
-OUTBASE=runs/prefetcher_sweep
+OUTBASE=runs/l2_assoc_sweep
 RUN_GEM5="python3 kernel/run_gem5.py"
 LOGDIR="$OUTBASE/logs"
 mkdir -p "$LOGDIR"
 
-# ── Map definitions (same as cache sweep) ────────────────────────────
 declare -a MAPS=(
   "maze2    maze-32-32-2.map    maze-32-32-2-random-1.scen    kernel/traces/bs32_o7.trace           2"
   "maze4    maze-32-32-4.map    maze-32-32-4-random-1.scen    kernel/traces/maze4_bs32_o7.trace     2"
@@ -20,21 +16,19 @@ declare -a MAPS=(
   "room64   room-64-64-8.map    room-64-64-8-random-1.scen    kernel/traces/room64_bs32_o7.trace    2"
 )
 
-# ── Prefetcher configurations ───────────────────────────────────────
-# Base: --cpu-type=DerivO3CPU --caches --l2cache (no prefetcher by default)
+# L2 associativity: default=8, sweep 2/4/16
+# Also cross with L2=1MB to see assoc effect at smaller capacity
 declare -a CONFIGS=(
-  # no prefetcher (control — same as cache sweep baseline)
-  "no_pf            "
-
-  # Stride prefetcher on L2: detects strided access patterns
-  # Hypothesis: helps brc202d (sequential resize), not maze2 (pointer chasing)
-  "stride_l2        --l2-hwp-type=StridePrefetcher"
-
-  # Tagged prefetcher on L2: simple next-line prefetch on miss
-  "tagged_l2        --l2-hwp-type=TaggedPrefetcher"
+  "assoc8_baseline  "
+  "assoc2           --l2_assoc=2"
+  "assoc4           --l2_assoc=4"
+  "assoc16          --l2_assoc=16"
+  "l2_1MB_assoc2    --l2_size=1MB --l2_assoc=2"
+  "l2_1MB_assoc4    --l2_size=1MB --l2_assoc=4"
+  "l2_1MB_assoc8    --l2_size=1MB --l2_assoc=8"
+  "l2_1MB_assoc16   --l2_size=1MB --l2_assoc=16"
 )
 
-# ── Job queue ────────────────────────────────────────────────────────
 declare -a JOB_CMDS=()
 declare -a JOB_NAMES=()
 
@@ -66,7 +60,7 @@ done
 
 TOTAL=${#JOB_CMDS[@]}
 echo "============================================"
-echo "  Prefetcher sweep: $TOTAL jobs, max $MAX_JOBS parallel"
+echo "  L2 Associativity sweep: $TOTAL jobs, max $MAX_JOBS parallel"
 echo "  Output: $OUTBASE/<map>/<config>/"
 echo "============================================"
 echo ""
@@ -76,7 +70,6 @@ if [ "$TOTAL" -eq 0 ]; then
   exit 0
 fi
 
-# ── Parallel executor ────────────────────────────────────────────────
 declare -a PIDS=()
 declare -a PID_NAMES=()
 NEXT=0
@@ -88,14 +81,10 @@ start_job() {
   local name="${JOB_NAMES[$idx]}"
   local cmd="${JOB_CMDS[$idx]}"
   local logfile="$LOGDIR/${name}.log"
-
   echo "[START] ($((idx+1))/$TOTAL) $name"
-  echo "        cmd: $cmd"
   echo "        log: $logfile"
-
   eval "$cmd" > "$logfile" 2>&1 &
-  local pid=$!
-  PIDS+=("$pid")
+  PIDS+=("$!")
   PID_NAMES+=("$name")
 }
 
@@ -105,18 +94,15 @@ wait_for_slot() {
       if ! kill -0 "${PIDS[$i]}" 2>/dev/null; then
         wait "${PIDS[$i]}" && true
         local rc=$?
-        local name="${PID_NAMES[$i]}"
         DONE=$((DONE + 1))
         if [ $rc -eq 0 ]; then
-          echo "[ OK ] ($DONE/$TOTAL) $name"
+          echo "[ OK ] ($DONE/$TOTAL) ${PID_NAMES[$i]}"
         else
-          echo "[FAIL] ($DONE/$TOTAL) $name (exit $rc) — see $LOGDIR/${name}.log"
+          echo "[FAIL] ($DONE/$TOTAL) ${PID_NAMES[$i]} (exit $rc) — see $LOGDIR/${PID_NAMES[$i]}.log"
           FAILED=$((FAILED + 1))
         fi
-        unset 'PIDS[i]'
-        unset 'PID_NAMES[i]'
-        PIDS=("${PIDS[@]}")
-        PID_NAMES=("${PID_NAMES[@]}")
+        unset 'PIDS[i]'; unset 'PID_NAMES[i]'
+        PIDS=("${PIDS[@]}"); PID_NAMES=("${PID_NAMES[@]}")
         return
       fi
     done
@@ -124,14 +110,11 @@ wait_for_slot() {
   done
 }
 
-# ── Main loop ────────────────────────────────────────────────────────
 START_TIME=$(date +%s)
-
 while [ $NEXT -lt $TOTAL ]; do
   wait_for_slot
   start_job $NEXT
   NEXT=$((NEXT + 1))
-  # stagger starts so perf stat measurements don't contend for HW counters
   sleep 15
 done
 
@@ -157,8 +140,7 @@ echo "  Failed: $FAILED"
 echo "  Wall time: ${ELAPSED} minutes"
 echo "============================================"
 
-# ── Collect results into CSV ─────────────────────────────────────────
-SUMMARY_CSV="$OUTBASE/prefetcher_results.csv"
+SUMMARY_CSV="$OUTBASE/l2_assoc_results.csv"
 echo "map,config,insts,cycles,CPI,cond_predicted,cond_incorrect,branch_miss_rate,MPKI,dcache_misses,dcache_accesses,dcache_miss_rate,l2cache_misses,l2cache_accesses,l2cache_miss_rate" > "$SUMMARY_CSV"
 
 for map_entry in "${MAPS[@]}"; do
@@ -166,11 +148,9 @@ for map_entry in "${MAPS[@]}"; do
   for cfg_entry in "${CONFIGS[@]}"; do
     cfg_name=$(echo "$cfg_entry" | awk '{print $1}')
     json="$OUTBASE/${alias}/${cfg_name}/summary.json"
-    if [ ! -f "$json" ]; then
-      continue
-    fi
+    [ ! -f "$json" ] && continue
     python3 -c "
-import json, sys
+import json
 d = json.load(open('$json'))
 insts = d.get('insts', 0)
 cycles = d.get('cycles', 0)
@@ -191,4 +171,3 @@ print(f'$alias,$cfg_name,{insts:.0f},{cycles:.0f},{cpi:.4f},{cp:.0f},{ci:.0f},{b
 done >> "$SUMMARY_CSV"
 
 echo "Results CSV: $SUMMARY_CSV"
-echo "Per-run logs: $LOGDIR/"
