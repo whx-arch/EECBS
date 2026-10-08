@@ -6,7 +6,7 @@
 # Run from the repo root:  bash kernel/sweep_prefetcher.sh
 set -euo pipefail
 
-MAX_JOBS=4
+MAX_JOBS=1
 OUTBASE=runs/prefetcher_sweep
 RUN_GEM5="python3 kernel/run_gem5.py"
 LOGDIR="$OUTBASE/logs"
