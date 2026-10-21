@@ -1,0 +1,121 @@
+== 汇总（system.l2）==
+### maze4
+cache system.l2: attributed=127006 other=23027 noVaddr=4
+  vaddr-attributed share of demand (attr+other): 84.7%
+    HashTable           52579   41.4%
+    AStarNode           41997   33.1%
+    OpenHeap            13539   10.7%
+    FocalHeap           12368    9.7%
+    CAT                  6181    4.9%
+    ConstraintTable       342    0.3%
+
+### empty
+cache system.l2: attributed=59529 other=102765 noVaddr=0
+  vaddr-attributed share of demand (attr+other): 36.7%
+    HashTable           33489   56.3%
+    AStarNode           15105   25.4%
+    OpenHeap             6192   10.4%
+    FocalHeap            4166    7.0%
+    ConstraintTable       446    0.7%
+    CAT                   131    0.2%
+
+### room32
+cache system.l2: attributed=3554441 other=187812 noVaddr=26
+  vaddr-attributed share of demand (attr+other): 95.0%
+    HashTable         1650404   46.4%
+    AStarNode         1619349   45.6%
+    OpenHeap           130126    3.7%
+    FocalHeap          119114    3.4%
+    CAT                 33561    0.9%
+    ConstraintTable      1887    0.1%
+
+### room64
+cache system.l2: attributed=2779223 other=231046 noVaddr=89
+  vaddr-attributed share of demand (attr+other): 92.3%
+    HashTable         1185384   42.7%
+    AStarNode         1025475   36.9%
+    CAT                275938    9.9%
+    OpenHeap           187617    6.8%
+    FocalHeap          103476    3.7%
+    ConstraintTable      1333    0.0%
+
+### warehouse
+cache system.l2: attributed=11484179 other=189294 noVaddr=453
+  vaddr-attributed share of demand (attr+other): 98.4%
+    HashTable         4915550   42.8%
+    AStarNode         4110763   35.8%
+    FocalHeap          848070    7.4%
+    OpenHeap           826674    7.2%
+    CAT                782420    6.8%
+    ConstraintTable       702    0.0%
+
+### den312d
+cache system.l2: attributed=2911826 other=244392 noVaddr=61
+  vaddr-attributed share of demand (attr+other): 92.3%
+    HashTable          999966   34.3%
+    AStarNode          986525   33.9%
+    CAT                454985   15.6%
+    OpenHeap           246283    8.5%
+    FocalHeap          217145    7.5%
+    ConstraintTable      6922    0.2%
+
+### ost003d
+cache system.l2: attributed=19737905 other=158377 noVaddr=823
+  vaddr-attributed share of demand (attr+other): 99.2%
+    HashTable         7927018   40.2%
+    AStarNode         6773773   34.3%
+    CAT               1891680    9.6%
+    FocalHeap         1780519    9.0%
+    OpenHeap          1364524    6.9%
+    ConstraintTable       391    0.0%
+
+### maze128_10
+cache system.l2: attributed=34663436 other=305278 noVaddr=1701
+  vaddr-attributed share of demand (attr+other): 99.1%
+    HashTable        14473627   41.8%
+    AStarNode        12989530   37.5%
+    FocalHeap         3022477    8.7%
+    OpenHeap          2329716    6.7%
+    CAT               1847318    5.3%
+    ConstraintTable       768    0.0%
+
+### berlin
+cache system.l2: attributed=8305542 other=264288 noVaddr=281
+  vaddr-attributed share of demand (attr+other): 96.9%
+    CAT               7382728   88.9%
+    HashTable          361867    4.4%
+    AStarNode          249180    3.0%
+    FocalHeap          160629    1.9%
+    OpenHeap           150804    1.8%
+    ConstraintTable       334    0.0%
+
+### boston
+cache system.l2: attributed=11348304 other=316909 noVaddr=333
+  vaddr-attributed share of demand (attr+other): 97.3%
+    CAT               8531805   75.2%
+    HashTable         1196939   10.5%
+    AStarNode          867822    7.6%
+    FocalHeap          405368    3.6%
+    OpenHeap           345979    3.0%
+    ConstraintTable       391    0.0%
+
+### paris
+cache system.l2: attributed=9362888 other=301371 noVaddr=257
+  vaddr-attributed share of demand (attr+other): 96.9%
+    CAT               8446008   90.2%
+    HashTable          360020    3.8%
+    AStarNode          268046    2.9%
+    FocalHeap          147908    1.6%
+    OpenHeap           140543    1.5%
+    ConstraintTable       363    0.0%
+
+### brc202d
+cache system.l2: attributed=19461290 other=318818 noVaddr=759
+  vaddr-attributed share of demand (attr+other): 98.4%
+    CAT               6407531   32.9%
+    HashTable         5628154   28.9%
+    AStarNode         4470147   23.0%
+    FocalHeap         1706996    8.8%
+    OpenHeap          1248210    6.4%
+    ConstraintTable       252    0.0%
+

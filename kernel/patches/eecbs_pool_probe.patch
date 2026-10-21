@@ -1,0 +1,447 @@
+diff -ruN '--exclude=build*' inc/ConstraintTable.h /home/viplab/eecbs/runs/memory_pool_probe_20261020/pooled/inc/ConstraintTable.h
+--- inc/ConstraintTable.h	2026-09-23 18:26:19.391234962 +0800
++++ /home/viplab/eecbs/runs/memory_pool_probe_20261020/pooled/inc/ConstraintTable.h	2026-10-20 08:35:51.682248516 +0800
+@@ -1,6 +1,7 @@
+ #pragma once
+ #include "common.h"
+ #include "CBSNode.h"
++#include "MemoryPoolProbe.h"
+ class ConstraintTable
+ {
+ public:
+@@ -44,15 +45,19 @@
+ 
+ protected:
+     friend class ReservationTable;
+-    typedef unordered_map<size_t, list< pair<int, int> > > CT; // constraint table
++    typedef list<pair<int, int>, eecbs_pool::Allocator<pair<int, int>, eecbs_pool::Kind::ConstraintTable>> CTRanges;
++    typedef unordered_map<size_t, CTRanges, boost::hash<size_t>, std::equal_to<size_t>,
++        eecbs_pool::Allocator<pair<const size_t, CTRanges>, eecbs_pool::Kind::ConstraintTable>> CT;
+     CT ct; // location -> time range, or edge -> time range
+     int ct_max_timestep = 0;
+     // typedef unordered_map<size_t, set< pair<int, int> > > CAT; // conflict avoidance table // location -> time range, or edge -> time range
+-    typedef vector< vector<bool> > CAT;
++    typedef vector<bool, eecbs_pool::Allocator<bool, eecbs_pool::Kind::CAT>> CATRow;
++    typedef vector<CATRow, eecbs_pool::Allocator<CATRow, eecbs_pool::Kind::CAT>> CAT;
+     CAT cat;
+     int cat_max_timestep = 0;
+-    vector<int> cat_goals;
+-    map<int, size_t> landmarks; // <timestep, location>: the agent must be at the given location at the given timestep
++    vector<int, eecbs_pool::Allocator<int, eecbs_pool::Kind::CAT>> cat_goals;
++    map<int, size_t, std::less<int>,
++        eecbs_pool::Allocator<pair<const int, size_t>, eecbs_pool::Kind::ConstraintTable>> landmarks;
+ 
+     void insertLandmark(size_t loc, int t); // insert a landmark, i.e., the agent has to be at the given location at the given timestep
+     list<pair<int, int> > decodeBarrier(int B1, int B2, int t) const;
+diff -ruN '--exclude=build*' inc/ConstraintTable.h.orig /home/viplab/eecbs/runs/memory_pool_probe_20261020/pooled/inc/ConstraintTable.h.orig
+--- inc/ConstraintTable.h.orig	1970-01-01 08:00:00.000000000 +0800
++++ /home/viplab/eecbs/runs/memory_pool_probe_20261020/pooled/inc/ConstraintTable.h.orig	2026-09-23 18:26:19.391234962 +0800
+@@ -0,0 +1,60 @@
++#pragma once
++#include "common.h"
++#include "CBSNode.h"
++class ConstraintTable
++{
++public:
++    int length_min = 0;
++    int length_max = MAX_TIMESTEP;
++    size_t num_col;
++    size_t map_size;
++
++    int getHoldingTime(int location, int earliest_timestep) const; // the earliest timestep that the agent can hold the location after earliest_timestep
++    int getMaxTimestep() const; // everything is static after the max timestep
++    int getLastCollisionTimestep(int location) const;
++    // void clear(){ct.clear(); cat_small.clear(); cat_large.clear(); landmarks.clear(); length_min = 0, length_max = INT_MAX; latest_timestep = 0;}
++
++    bool constrained(size_t loc, int t) const;
++    bool constrained(size_t curr_loc, size_t next_loc, int next_t) const;
++    int getNumOfConflictsForStep(size_t curr_id, size_t next_id, int next_timestep) const;
++    bool hasConflictForStep(size_t curr_id, size_t next_id, int next_timestep) const;
++    bool hasEdgeConflict(size_t curr_id, size_t next_id, int next_timestep) const;
++    int getFutureNumOfCollisions(int loc, int t) const;
++
++    ConstraintTable(size_t num_col, size_t map_size) : num_col(num_col), map_size(map_size) {}
++    ConstraintTable(const ConstraintTable& other) { copy(other); }
++    ~ConstraintTable() = default;
++
++    void copy(const ConstraintTable& other);
++    void init(const ConstraintTable& other) { copy(other); }
++    void clear()
++    {
++        ct.clear();
++        landmarks.clear();
++        cat.clear();
++    }
++    void insert2CT(const HLNode& node, int agent); // build the constraint table for the given agent at the give node
++    void insert2CT(const list<Constraint>& constraints, int agent); // insert constraints for the given agent to the constraint table
++    void insert2CT(const Path& path); // insert a path to the constraint table
++    void insert2CT(size_t loc, int t_min, int t_max); // insert a vertex constraint to the constraint table
++    void insert2CT(size_t from, size_t to, int t_min, int t_max); // insert an edge constraint to the constraint table
++    void insert2CAT(int agent, const vector<Path*>& paths); // build the conflict avoidance table using a set of paths
++    void insert2CAT(const Path& path); // insert a path to the collision avoidance table
++    //int getCATMaxTimestep() const {return cat_max_timestep;}
++
++protected:
++    friend class ReservationTable;
++    typedef unordered_map<size_t, list< pair<int, int> > > CT; // constraint table
++    CT ct; // location -> time range, or edge -> time range
++    int ct_max_timestep = 0;
++    // typedef unordered_map<size_t, set< pair<int, int> > > CAT; // conflict avoidance table // location -> time range, or edge -> time range
++    typedef vector< vector<bool> > CAT;
++    CAT cat;
++    int cat_max_timestep = 0;
++    vector<int> cat_goals;
++    map<int, size_t> landmarks; // <timestep, location>: the agent must be at the given location at the given timestep
++
++    void insertLandmark(size_t loc, int t); // insert a landmark, i.e., the agent has to be at the given location at the given timestep
++    list<pair<int, int> > decodeBarrier(int B1, int B2, int t) const;
++    inline size_t getEdgeIndex(size_t from, size_t to) const { return (1 + from) * map_size + to; }
++};
+diff -ruN '--exclude=build*' inc/MemoryPoolProbe.h /home/viplab/eecbs/runs/memory_pool_probe_20261020/pooled/inc/MemoryPoolProbe.h
+--- inc/MemoryPoolProbe.h	1970-01-01 08:00:00.000000000 +0800
++++ /home/viplab/eecbs/runs/memory_pool_probe_20261020/pooled/inc/MemoryPoolProbe.h	2026-10-20 08:35:51.682389932 +0800
+@@ -0,0 +1,54 @@
++#pragma once
++
++#include <cstddef>
++#include <limits>
++#include <new>
++
++namespace eecbs_pool {
++
++// Each kind owns a disjoint virtual-address arena. The pool is for attribution,
++// not as an optimized allocator. Keep categories stable across experiments.
++enum class Kind : unsigned {
++    AStarNode,
++    HashTable,
++    OpenHeap,
++    FocalHeap,
++    ConstraintTable,
++    CAT,
++    Count
++};
++
++void* allocate(Kind kind, std::size_t bytes);
++void deallocate(Kind kind, void* ptr) noexcept;
++void roi_begin() noexcept;
++void roi_end() noexcept;
++
++template <class T, Kind K>
++class Allocator {
++public:
++    using value_type = T;
++    using pointer = T*;
++    using const_pointer = const T*;
++    using size_type = std::size_t;
++    using difference_type = std::ptrdiff_t;
++    template <class U> struct rebind { using other = Allocator<U, K>; };
++
++    Allocator() noexcept = default;
++    template <class U> Allocator(const Allocator<U, K>&) noexcept {}
++
++    T* allocate(std::size_t n) {
++        if (n > std::numeric_limits<std::size_t>::max() / sizeof(T))
++            throw std::bad_alloc();
++        return static_cast<T*>(eecbs_pool::allocate(K, n * sizeof(T)));
++    }
++    void deallocate(T* p, std::size_t) noexcept {
++        eecbs_pool::deallocate(K, p);
++    }
++};
++
++template <class T, class U, Kind K>
++bool operator==(const Allocator<T, K>&, const Allocator<U, K>&) noexcept { return true; }
++template <class T, class U, Kind K>
++bool operator!=(const Allocator<T, K>&, const Allocator<U, K>&) noexcept { return false; }
++
++} // namespace eecbs_pool
+diff -ruN '--exclude=build*' inc/SpaceTimeAStar.h /home/viplab/eecbs/runs/memory_pool_probe_20261020/pooled/inc/SpaceTimeAStar.h
+--- inc/SpaceTimeAStar.h	2026-09-23 18:26:19.391663647 +0800
++++ /home/viplab/eecbs/runs/memory_pool_probe_20261020/pooled/inc/SpaceTimeAStar.h	2026-10-20 08:35:51.682559863 +0800
+@@ -1,13 +1,16 @@
+ ﻿#pragma once
+ #include "SingleAgentSolver.h"
++#include "MemoryPoolProbe.h"
+ 
+ 
+ class AStarNode: public LLNode
+ {
+ public:
+ 	// define a typedefs for handles to the heaps (allow up to quickly update a node in the heap)
+-	typedef pairing_heap< AStarNode*, compare<LLNode::compare_node> >::handle_type open_handle_t;
+-	typedef pairing_heap< AStarNode*, compare<LLNode::secondary_compare_node> >::handle_type focal_handle_t;
++	typedef pairing_heap< AStarNode*, compare<LLNode::compare_node>,
++		boost::heap::allocator<eecbs_pool::Allocator<AStarNode*, eecbs_pool::Kind::OpenHeap>> >::handle_type open_handle_t;
++	typedef pairing_heap< AStarNode*, compare<LLNode::secondary_compare_node>,
++		boost::heap::allocator<eecbs_pool::Allocator<AStarNode*, eecbs_pool::Kind::FocalHeap>> >::handle_type focal_handle_t;
+ 	open_handle_t open_handle;
+ 	focal_handle_t focal_handle;
+ 
+@@ -19,6 +22,8 @@
+ 
+ 
+ 	~AStarNode() {}
++	static void* operator new(std::size_t bytes) { return eecbs_pool::allocate(eecbs_pool::Kind::AStarNode, bytes); }
++	static void operator delete(void* ptr) noexcept { eecbs_pool::deallocate(eecbs_pool::Kind::AStarNode, ptr); }
+ 
+ 	// The following is used by for generating the hash value of a nodes
+ 	struct NodeHasher
+@@ -68,13 +73,16 @@
+ 
+ private:
+ 	// define typedefs and handles for heap
+-	typedef pairing_heap< AStarNode*, compare<AStarNode::compare_node> > heap_open_t;
+-	typedef pairing_heap< AStarNode*, compare<AStarNode::secondary_compare_node> > heap_focal_t;
++	typedef pairing_heap< AStarNode*, compare<AStarNode::compare_node>,
++		boost::heap::allocator<eecbs_pool::Allocator<AStarNode*, eecbs_pool::Kind::OpenHeap>> > heap_open_t;
++	typedef pairing_heap< AStarNode*, compare<AStarNode::secondary_compare_node>,
++		boost::heap::allocator<eecbs_pool::Allocator<AStarNode*, eecbs_pool::Kind::FocalHeap>> > heap_focal_t;
+ 	heap_open_t open_list;
+ 	heap_focal_t focal_list;
+ 
+ 	// define typedef for hash_map
+-	typedef unordered_set<AStarNode*, AStarNode::NodeHasher, AStarNode::eqnode> hashtable_t;
++	typedef unordered_set<AStarNode*, AStarNode::NodeHasher, AStarNode::eqnode,
++		eecbs_pool::Allocator<AStarNode*, eecbs_pool::Kind::HashTable>> hashtable_t;
+ 	hashtable_t allNodes_table;
+ 
+ 	// Updates the path datamember
+diff -ruN '--exclude=build*' src/MemoryPoolProbe.cpp /home/viplab/eecbs/runs/memory_pool_probe_20261020/pooled/src/MemoryPoolProbe.cpp
+--- src/MemoryPoolProbe.cpp	1970-01-01 08:00:00.000000000 +0800
++++ /home/viplab/eecbs/runs/memory_pool_probe_20261020/pooled/src/MemoryPoolProbe.cpp	2026-10-20 16:58:57.363781634 +0800
+@@ -0,0 +1,212 @@
++#include "MemoryPoolProbe.h"
++
++#include <cerrno>
++#include <cinttypes>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <map>
++#include <sys/mman.h>
++#include <time.h>
++#include <unistd.h>
++
++namespace eecbs_pool {
++namespace {
++
++constexpr std::size_t kAlignment = 64;
++constexpr std::uint64_t kMagic = UINT64_C(0x4545434253504f4f);
++const char* const kNames[] = {
++    "AStarNode", "HashTable", "OpenHeap", "FocalHeap", "ConstraintTable", "CAT"
++};
++constexpr unsigned kCount = static_cast<unsigned>(Kind::Count);
++
++struct alignas(kAlignment) Header {
++    Header* next;
++    std::size_t span;
++    std::size_t requested;
++    std::uint64_t magic;
++    unsigned kind;
++};
++static_assert(sizeof(Header) == kAlignment, "pool header must occupy one cache line");
++
++struct Pool {
++    char* base = nullptr;
++    std::size_t capacity = 0;
++    std::size_t cursor = 0;
++    std::map<std::size_t, Header*> free_by_span;
++    std::uint64_t allocs = 0, frees = 0;
++    std::uint64_t live_bytes = 0, peak_live_bytes = 0;
++    std::uint64_t requested_bytes = 0;
++};
++
++Pool pools[kCount];
++bool exit_handler_registered = false;
++bool roi_active = false;
++std::uint64_t roi_start_allocs[kCount] = {};
++std::uint64_t roi_start_frees[kCount] = {};
++
++unsigned index(Kind kind) { return static_cast<unsigned>(kind); }
++
++std::size_t arena_capacity() {
++    const char* env = std::getenv("EECBS_POOL_GIB");
++    if (!env || !*env) return std::size_t(1) << 30;
++    char* end = nullptr;
++    errno = 0;
++    unsigned long gib = std::strtoul(env, &end, 10);
++    if (errno || !end || *end || gib < 1 || gib > 64) {
++        std::fprintf(stderr, "EECBS_POOL_GIB must be an integer from 1 to 64\n");
++        std::abort();
++    }
++    return std::size_t(gib) << 30;
++}
++
++void print_stats() {
++    for (unsigned i = 0; i < kCount; ++i) {
++        const Pool& p = pools[i];
++        if (!p.base) continue;
++        std::fprintf(stderr,
++            "EECBS_POOL_STATS pid=%ld name=%s allocs=%" PRIu64
++            " frees=%" PRIu64 " requested_bytes=%" PRIu64
++            " live_bytes=%" PRIu64 " peak_live_bytes=%" PRIu64
++            " highwater_bytes=%zu\n",
++            static_cast<long>(getpid()), kNames[i], p.allocs, p.frees,
++            p.requested_bytes, p.live_bytes, p.peak_live_bytes, p.cursor);
++    }
++}
++
++Pool& get_pool(Kind kind) {
++    const unsigned i = index(kind);
++    if (i >= kCount) std::abort();
++    Pool& p = pools[i];
++    if (p.base) return p;
++    p.capacity = arena_capacity();
++    int flags = MAP_PRIVATE | MAP_ANONYMOUS;
++#ifdef MAP_NORESERVE
++    flags |= MAP_NORESERVE;
++#endif
++    void* addr = mmap(nullptr, p.capacity, PROT_READ | PROT_WRITE, flags, -1, 0);
++    if (addr == MAP_FAILED) {
++        std::fprintf(stderr, "EECBS pool mmap failed for %s: %s\n", kNames[i], std::strerror(errno));
++        throw std::bad_alloc();
++    }
++    p.base = static_cast<char*>(addr);
++    if (!exit_handler_registered) {
++        std::atexit(print_stats);
++        exit_handler_registered = true;
++    }
++    std::fprintf(stderr, "EECBS_POOL_RANGE pid=%ld name=%s begin=0x%" PRIxPTR
++                         " end=0x%" PRIxPTR "\n",
++        static_cast<long>(getpid()), kNames[i],
++        reinterpret_cast<std::uintptr_t>(p.base),
++        reinterpret_cast<std::uintptr_t>(p.base + p.capacity));
++    return p;
++}
++
++std::size_t rounded_span(std::size_t requested) {
++    if (requested > SIZE_MAX - sizeof(Header) - (kAlignment - 1))
++        throw std::bad_alloc();
++    const std::size_t total = sizeof(Header) + (requested ? requested : 1);
++    return (total + kAlignment - 1) & ~(kAlignment - 1);
++}
++
++double monotonic_seconds() noexcept {
++    timespec ts{};
++    clock_gettime(CLOCK_MONOTONIC, &ts);
++    return static_cast<double>(ts.tv_sec) + static_cast<double>(ts.tv_nsec) / 1e9;
++}
++
++void reserve_all_pools() noexcept {
++    for (unsigned i = 0; i < kCount; ++i) (void)get_pool(static_cast<Kind>(i));
++}
++void write_ranges_file() noexcept {
++    std::FILE* f = std::fopen("eecbs_pool_ranges.txt", "w");
++    if (!f) return;
++    for (unsigned i = 0; i < kCount; ++i) {
++        const Pool& pp = pools[i];
++        if (!pp.base) continue;
++        std::fprintf(f, "%s 0x%" PRIxPTR " 0x%" PRIxPTR "\n", kNames[i],
++            reinterpret_cast<std::uintptr_t>(pp.base),
++            reinterpret_cast<std::uintptr_t>(pp.base + pp.capacity));
++    }
++    std::fclose(f);
++}
++} // namespace
++
++void* allocate(Kind kind, std::size_t bytes) {
++    Pool& p = get_pool(kind);
++    const std::size_t span = rounded_span(bytes);
++    p.free_by_span.emplace(span, nullptr); // deallocation must not allocate
++    Header* h = nullptr;
++    auto it = p.free_by_span.find(span);
++    if (it != p.free_by_span.end() && it->second) {
++        h = it->second;
++        it->second = h->next;
++    } else {
++        if (span > p.capacity - p.cursor) {
++            std::fprintf(stderr, "EECBS pool %s exhausted (highwater=%zu bytes); "
++                                 "increase EECBS_POOL_GIB\n", kNames[index(kind)], p.cursor);
++            throw std::bad_alloc();
++        }
++        h = reinterpret_cast<Header*>(p.base + p.cursor);
++        p.cursor += span;
++    }
++    h->next = nullptr;
++    h->span = span;
++    h->requested = bytes;
++    h->magic = kMagic;
++    h->kind = index(kind);
++    ++p.allocs;
++    p.requested_bytes += bytes;
++    p.live_bytes += bytes;
++    if (p.live_bytes > p.peak_live_bytes) p.peak_live_bytes = p.live_bytes;
++    return reinterpret_cast<char*>(h) + sizeof(Header);
++}
++
++void deallocate(Kind kind, void* ptr) noexcept {
++    if (!ptr) return;
++    const unsigned i = index(kind);
++    if (i >= kCount || !pools[i].base) std::abort();
++    Pool& p = pools[i];
++    const auto address = reinterpret_cast<std::uintptr_t>(ptr);
++    const auto begin = reinterpret_cast<std::uintptr_t>(p.base);
++    if (address < begin + sizeof(Header) || address >= begin + p.cursor)
++        std::abort();
++    Header* h = reinterpret_cast<Header*>(static_cast<char*>(ptr) - sizeof(Header));
++    if (h->magic != kMagic || h->kind != i) std::abort();
++    h->magic = 0;
++    ++p.frees;
++    p.live_bytes -= h->requested;
++    auto it = p.free_by_span.find(h->span);
++    if (it == p.free_by_span.end()) std::abort();
++    h->next = it->second;
++    it->second = h;
++}
++
++void roi_begin() noexcept {
++    roi_active = true;
++    reserve_all_pools();
++    write_ranges_file();
++    for (unsigned i = 0; i < kCount; ++i) {
++        roi_start_allocs[i] = pools[i].allocs;
++        roi_start_frees[i] = pools[i].frees;
++    }
++    std::fprintf(stderr, "EECBS_POOL_ROI_BEGIN pid=%ld time=%.9f\n",
++                 static_cast<long>(getpid()), monotonic_seconds());
++}
++
++void roi_end() noexcept {
++    std::fprintf(stderr, "EECBS_POOL_ROI_END pid=%ld time=%.9f\n",
++                 static_cast<long>(getpid()), monotonic_seconds());
++    if (!roi_active) return;
++    for (unsigned i = 0; i < kCount; ++i) {
++        if (!pools[i].base) continue;
++        std::fprintf(stderr, "EECBS_POOL_ROI_ALLOC pid=%ld name=%s allocs=%" PRIu64
++                             " frees=%" PRIu64 "\n", static_cast<long>(getpid()), kNames[i],
++                     pools[i].allocs - roi_start_allocs[i],
++                     pools[i].frees - roi_start_frees[i]);
++    }
++    roi_active = false;
++}
++
++} // namespace eecbs_pool
+--- kernel/lowlevel_kernel.cpp	2026-10-08 14:58:04.920767462 +0800
++++ /home/viplab/eecbs/runs/memory_pool_probe_20261020/pooled/kernel/lowlevel_kernel.cpp	2026-10-20 08:35:51.682716587 +0800
+@@ -23,6 +23,7 @@
+ #include <string>
+ #include <chrono>
+ #include "SpaceTimeAStar.h"
++#include "MemoryPoolProbe.h"
+ 
+ #ifdef USE_M5OPS
+ #include <gem5/m5ops.h>
+@@ -400,10 +401,12 @@
+ #ifdef USE_M5OPS
+ 	m5_reset_stats(0, 0);
+ #endif
++	eecbs_pool::roi_begin();
+ 	auto t0 = std::chrono::steady_clock::now();
+ 	for (int it = 0; it < args.iters; it++)
+ 		replan(args.warmup + it, tot);
+ 	auto t1 = std::chrono::steady_clock::now();
++	eecbs_pool::roi_end();
+ #ifdef USE_M5OPS
+ 	m5_dump_stats(0, 0);
+ #endif

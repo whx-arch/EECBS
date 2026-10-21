@@ -1,0 +1,3 @@
+CACHE system.cpu.dcache AStarNode=8032508 HashTable=7662762 OpenHeap=1529027 FocalHeap=3942656 ConstraintTable=78435 CAT=13543696 noVaddr=0 other=1347328
+CACHE system.cpu.icache AStarNode=0 HashTable=0 OpenHeap=0 FocalHeap=0 ConstraintTable=0 CAT=0 noVaddr=0 other=1965
+CACHE system.l2 AStarNode=4470147 HashTable=5628154 OpenHeap=1248210 FocalHeap=1706996 ConstraintTable=252 CAT=6407531 noVaddr=759 other=318818

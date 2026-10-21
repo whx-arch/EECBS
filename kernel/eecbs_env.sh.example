@@ -1,0 +1,4 @@
+export GEM5="$HOME/gem5"
+export REPO="$HOME/eecbs"
+export POOLSRC="$REPO/runs/memory_pool_probe_20261020/pooled"
+export POOLBIN="$POOLSRC/kernel/build-gem5-pool/lowlevel_kernel"

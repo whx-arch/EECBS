@@ -1,0 +1,74 @@
+diff --git a/src/mem/cache/base.cc b/src/mem/cache/base.cc
+index f6563e176e..6547af2b92 100644
+--- a/src/mem/cache/base.cc
++++ b/src/mem/cache/base.cc
+@@ -65,6 +65,60 @@
+ #include "params/WriteAllocator.hh"
+ #include "sim/cur_tick.hh"
+ 
++
++// --- B.0 EECBS pool miss attribution (reads eecbs_pool_ranges.txt -> pool_attrib_roi.txt) ---
++#include <array>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <map>
++#include <string>
++#include <vector>
++#include "base/statistics.hh"
++namespace {
++struct EecbsPoolAttrib {
++    struct R { std::string name; uintptr_t lo, hi; };
++    std::vector<R> ranges; bool loaded=false, armed=false;
++    std::map<std::string, std::array<uint64_t,8>> byCache;
++    void load() {
++        const char* fn = std::getenv("EECBS_POOL_RANGES");
++        std::FILE* f = std::fopen(fn && *fn ? fn : "eecbs_pool_ranges.txt", "r");
++        if(!f) return; char nm[64]; unsigned long long lo,hi; ranges.clear();
++        while(std::fscanf(f,"%63s 0x%llx 0x%llx",nm,&lo,&hi)==3)
++            ranges.push_back({std::string(nm),(uintptr_t)lo,(uintptr_t)hi});
++        std::fclose(f); if(!ranges.empty()) loaded=true;
++    }
++    void miss(const std::string& c, const gem5::CacheAccessProbeArg& arg) {
++        gem5::PacketPtr pkt = arg.pkt;
++        if(!loaded) load();
++        auto& a = byCache[c];
++        if(!pkt->req || !pkt->req->hasVaddr()){ a[6]++; return; }
++        uintptr_t va=(uintptr_t)pkt->req->getVaddr();
++        for(size_t i=0;i<ranges.size()&&i<6;i++)
++            if(va>=ranges[i].lo && va<ranges[i].hi){ a[i]++; return; }
++        a[7]++;
++    }
++    void reset(){ byCache.clear(); loaded=false; armed=true; }
++    void dump(){
++        if(!armed) return; armed=false;
++        std::FILE* f=std::fopen("pool_attrib_roi.txt","w"); if(!f) return;
++        const char* nm[6]={"AStarNode","HashTable","OpenHeap","FocalHeap","ConstraintTable","CAT"};
++        for(auto& kv:byCache){ std::fprintf(f,"CACHE %s",kv.first.c_str());
++            for(int i=0;i<6;i++) std::fprintf(f," %s=%llu",nm[i],(unsigned long long)kv.second[i]);
++            std::fprintf(f," noVaddr=%llu other=%llu\n",(unsigned long long)kv.second[6],(unsigned long long)kv.second[7]); }
++        std::fclose(f);
++    }
++};
++EecbsPoolAttrib& eecbs_pool_attrib(){
++    static EecbsPoolAttrib x;
++    static bool reg = [](){
++        gem5::statistics::registerResetCallback([](){ eecbs_pool_attrib().reset(); });
++        gem5::statistics::registerDumpCallback([](){ eecbs_pool_attrib().dump(); });
++        return true; }();
++    (void)reg; return x;
++}
++} // namespace
++
+ namespace gem5
+ {
+ 
+@@ -510,7 +564,7 @@ BaseCache::recvTimingReq(PacketPtr pkt)
+     } else {
+         handleTimingReqMiss(pkt, blk, forward_time, request_time);
+ 
+-        ppMiss->notify(CacheAccessProbeArg(pkt,accessor));
++        ppMiss->notify(CacheAccessProbeArg(pkt,accessor)); eecbs_pool_attrib().miss(name(), CacheAccessProbeArg(pkt,accessor));
+     }
+ 
+     if (prefetcher) {
