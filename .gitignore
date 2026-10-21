@@ -1,2 +1,23 @@
-.idea
-cmake-*
+# build 产物
+build/
+build-*/
+kernel/build/
+kernel/build-*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+m5out/
+**/__pycache__/
+*.pyc
+/eecbs
+# 实验输出 / 大二进制(绝不进 git)
+runs/
+/r[0-9][0-9][0-9]_*/
+kernel/traces/
+*.trace
+# 散落输出
+eecbs_pool_ranges.txt
+pool_attrib_roi.txt
+paths.txt
+test.csv
