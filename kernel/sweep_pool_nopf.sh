@@ -30,7 +30,9 @@ GEM5_BIN="${GEM5:-$HOME/gem5}/build/X86/gem5.opt"
 NATIVE_BIN="${NATIVE_BIN:-kernel/build/lowlevel_kernel}"   # original kernel, for expanded cross-check
 ORIG_CSV="${ORIG_CSV:-results/all_results.csv}"            # original no_pf cache-sweep data (reused, not re-run)
 
-MAX_JOBS="${MAX_JOBS:-3}"            # concurrent gem5 processes
+MAX_JOBS="${MAX_JOBS:-4}"            # concurrent gem5 processes (matches earlier sweeps)
+STAGGER_SECS="${STAGGER_SECS:-15}"   # min gap between launches: lets each --auto-setup
+                                     # native-perf measurement run alone (avoid PMU contention)
 REDRAW_SECS="${REDRAW_SECS:-3}"      # dashboard refresh interval
 OUTBASE="runs/pool_nopf"
 
@@ -125,6 +127,7 @@ draw() {
 
 # ── Scheduler loop ──────────────────────────────────────────────────────────
 WALL0=$(date +%s)
+LAST_LAUNCH=0            # epoch of the most recent job start (for staggering)
 printf '\033[2J'
 while :; do
   # reap finished
@@ -136,17 +139,21 @@ while :; do
       PID[i]=""
     fi
   done
-  # launch into free slots
+  # launch AT MOST ONE job per tick, and only after STAGGER_SECS since the last
+  # start, so overlapping --auto-setup native-perf measurements don't fight for
+  # the host PMU. Slots keep filling one-by-one up to MAX_JOBS.
   running=0; for ((i=0;i<TOTAL;i++)); do [ "${ST[i]}" = "RUNNING" ] && running=$((running+1)); done
-  for ((i=0;i<TOTAL;i++)); do
-    [ $running -ge $MAX_JOBS ] && break
-    if [ "${ST[i]}" = "PENDING" ]; then
-      ST[i]="RUNNING"; T0[i]=$(date +%s)
-      ( eval "${J_CMD[i]}" ) > "${J_LOG[i]}" 2>&1 &
-      PID[i]=$!
-      running=$((running+1))
-    fi
-  done
+  now=$(date +%s)
+  if [ $running -lt $MAX_JOBS ] && [ $((now-LAST_LAUNCH)) -ge $STAGGER_SECS ]; then
+    for ((i=0;i<TOTAL;i++)); do
+      if [ "${ST[i]}" = "PENDING" ]; then
+        ST[i]="RUNNING"; T0[i]=$now; LAST_LAUNCH=$now
+        ( eval "${J_CMD[i]}" ) > "${J_LOG[i]}" 2>&1 &
+        PID[i]=$!
+        break
+      fi
+    done
+  fi
   draw
   # done?
   rem=0; for ((i=0;i<TOTAL;i++)); do case "${ST[i]}" in PENDING|RUNNING) rem=$((rem+1));; esac; done
